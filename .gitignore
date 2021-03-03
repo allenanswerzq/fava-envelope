@@ -130,3 +130,6 @@ dmypy.json
 
 # MAc
 .DS_Store
+
+.example.beancount.picklecache
+.vscode/settings.json
