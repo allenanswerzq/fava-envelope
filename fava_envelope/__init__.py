@@ -8,15 +8,12 @@ from .modules.beancount_envelope import BeancountEnvelope
 
 
 class EnvelopeBudget(FavaExtensionBase):
-    '''
-    '''
+    """"""
+
     report_title = "Envelope Budget"
 
     def generate_budget_df(self):
-        module = BeancountEnvelope(
-            self.ledger.entries,
-            self.ledger.options
-        )
+        module = BeancountEnvelope(self.ledger.entries, self.ledger.options)
         self.income_tables, self.envelope_tables = module.envelope_tables()
 
     def get_budgets_months_available(self):
@@ -33,26 +30,36 @@ class EnvelopeBudget(FavaExtensionBase):
 
         if month is not None:
             row = {}
-            income_table_rows.append({
-                "Name": "Funds for month",
-                "Amount": self.income_tables[month]["Avail Income"]
-            })
-            income_table_rows.append({
-                "Name": "Overspent in prev month",
-                "Amount": self.income_tables[month]["Overspent"]
-            })
-            income_table_rows.append({
-                "Name": "Budgeted for month",
-                "Amount":  self.income_tables[month]["Budgeted"]
-            })
-            income_table_rows.append({
-                "Name": "To be budgeted for month",
-                "Amount":  self.income_tables[month]["To Be Budgeted"]
-            })
-            income_table_rows.append({
-                "Name": "Budgeted in the future",
-                "Amount":  self.income_tables[month]["Budgeted Future"]
-            })
+            income_table_rows.append(
+                {
+                    "Name": "Funds for month",
+                    "Amount": self.income_tables[month]["Avail Income"],
+                }
+            )
+            income_table_rows.append(
+                {
+                    "Name": "Overspent in prev month",
+                    "Amount": self.income_tables[month]["Overspent"],
+                }
+            )
+            income_table_rows.append(
+                {
+                    "Name": "Budgeted for month",
+                    "Amount": self.income_tables[month]["Budgeted"],
+                }
+            )
+            income_table_rows.append(
+                {
+                    "Name": "To be budgeted for month",
+                    "Amount": self.income_tables[month]["To Be Budgeted"],
+                }
+            )
+            income_table_rows.append(
+                {
+                    "Name": "Budgeted in the future",
+                    "Amount": self.income_tables[month]["Budgeted Future"],
+                }
+            )
 
         return (income_table_types, income_table_rows)
 
