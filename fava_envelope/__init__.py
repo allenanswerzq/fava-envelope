@@ -1,8 +1,8 @@
 """
 """
 
+from beancount.core.number import D, Decimal
 from fava.ext import FavaExtensionBase
-from beancount.core.number import Decimal, D
 
 from .modules.beancount_envelope import BeancountEnvelope
 
