@@ -1,5 +1,6 @@
 fail_fast: true
 repos:
+
   - repo: local
     hooks:
       - id: system
@@ -7,12 +8,14 @@ repos:
         entry: poetry export --format=requirements.txt --without-hashes --dev --output=docs/requirements.txt
         pass_filenames: false
         language: system
+
   - repo: https://github.com/psf/black
     rev: 20.8b1
     hooks:
       - id: black
         args: [--line-length=88]
         files: ^fava_envelope/
+
   - repo: local
     hooks:
       - id: system
@@ -20,3 +23,8 @@ repos:
         entry: poetry run isort .
         pass_filenames: false
         language: system
+
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 3.8.4
+    hooks:
+      - id: flake8
