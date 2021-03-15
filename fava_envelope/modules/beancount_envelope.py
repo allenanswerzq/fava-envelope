@@ -1,15 +1,8 @@
-# Debug
-try:
-    import ipdb
-except ImportError:
-    pass
-
 import collections
 import datetime
 import logging
 import re
 
-import numpy as np
 import pandas as pd
 from beancount.core import account_types, convert, data, inventory, prices
 from beancount.core.data import Custom
@@ -23,6 +16,7 @@ class BeancountEnvelope:
 
         self.entries = entries
         self.options_map = options_map
+        self.currency = self._find_currency(options_map)
         (
             self.start_date,
             self.budget_accounts,
@@ -35,13 +29,27 @@ class BeancountEnvelope:
         # Compute start of period
         # TODO get start date from journal
         today = datetime.date.today()
-        self.date_start = datetime.date(2020, 1, 1)
+        self.date_start = datetime.datetime.strptime(self.start_date, "%Y-%m").date()
+
+        # TODO should be able to assert errors
 
         # Compute end of period
         self.date_end = datetime.date(today.year, today.month, today.day)
 
         self.price_map = prices.build_price_map(entries)
         self.acctypes = options.get_account_types(options_map)
+
+    def _find_currency(self, options_map):
+        default_currency = "USD"
+        opt_currency = options_map.get("operating_currency")
+        currency = opt_currency[0] if opt_currency else default_currency
+        if len(currency) == 3:
+            return currency
+
+        logging.warning(
+            f"invalid operating currency: {currency}, defaulting to {default_currency}"
+        )
+        return default_currency
 
     def _find_envelop_settings(self):
         start_date = None
@@ -86,8 +94,13 @@ class BeancountEnvelope:
 
         # Calculate Starting Balance Income
         starting_balance = Decimal(0.0)
-        query_str = f"select account, convert(sum(position),'USD') from close on {months[0]}-01 group by 1 order by 1;"
-        rows = query.run_query(self.entries, self.options_map, query_str, numberify=True)
+        query_str = (
+            f"select account, convert(sum(position),'{self.currency}')"
+            + "from close on {months[0]}-01 group by 1 order by 1;"
+        )
+        rows = query.run_query(
+            self.entries, self.options_map, query_str, numberify=True
+        )
         for row in rows[1]:
             if any(regexp.match(row[0]) for regexp in self.budget_accounts):
                 if row[1] is not None:
@@ -153,13 +166,17 @@ class BeancountEnvelope:
                 self.income_df.loc["Budgeted Future", month] = Decimal(0.00)
             else:
                 next_month = months[index + 1]
-                opp_budgeted_next_month = self.income_df.loc["Budgeted", next_month] * -1
+                opp_budgeted_next_month = (
+                    self.income_df.loc["Budgeted", next_month] * -1
+                )
                 if opp_budgeted_next_month < sum_total:
                     self.income_df.loc["Budgeted Future", month] = Decimal(
                         -1 * opp_budgeted_next_month
                     )
                 else:
-                    self.income_df.loc["Budgeted Future", month] = Decimal(-1 * sum_total)
+                    self.income_df.loc["Budgeted Future", month] = Decimal(
+                        -1 * sum_total
+                    )
 
         # Set to be budgeted
         for index, month in enumerate(months):
@@ -190,7 +207,9 @@ class BeancountEnvelope:
             # TODO
             contains_budget_accounts = False
             for posting in entry.postings:
-                if any(regexp.match(posting.account) for regexp in self.budget_accounts):
+                if any(
+                    regexp.match(posting.account) for regexp in self.budget_accounts
+                ):
                     contains_budget_accounts = True
                     break
 
@@ -206,7 +225,7 @@ class BeancountEnvelope:
                         break
 
                 account_type = account_types.get_account_type(account)
-                if posting.units.currency != "USD":
+                if posting.units.currency != self.currency:
                     continue
 
                 if account_type == self.acctypes.income:
@@ -228,7 +247,7 @@ class BeancountEnvelope:
                 date = datetime.date(year, mth, 1)
                 balance = balance.reduce(convert.get_value, self.price_map, date)
                 balance = balance.reduce(
-                    convert.convert_position, "USD", self.price_map, date
+                    convert.convert_position, self.currency, self.price_map, date
                 )
                 try:
                     pos = balance.get_only_position()
@@ -240,7 +259,7 @@ class BeancountEnvelope:
 
         # Pivot the table
         header_months = sorted(all_months)
-        header = ["account"] + ["{}-{:02d}".format(*m) for m in header_months]
+        self.income_df.loc["Avail Income", :] = Decimal(0.00)
 
         for account in sorted(sbalances.keys()):
             for month in header_months:
@@ -253,14 +272,17 @@ class BeancountEnvelope:
                 if account == "Income":
                     self.income_df.loc["Avail Income", month_str] = Decimal(temp)
                 else:
-                    self.envelope_df.loc[account, (month_str, "budgeted")] = Decimal(0.00)
-                    self.envelope_df.loc[account, (month_str, "activity")] = Decimal(temp)
+                    self.envelope_df.loc[account, (month_str, "budgeted")] = Decimal(
+                        0.00
+                    )
+                    self.envelope_df.loc[account, (month_str, "activity")] = Decimal(
+                        temp
+                    )
                     self.envelope_df.loc[account, (month_str, "available")] = Decimal(
                         0.00
                     )
 
     def _calc_budget_budgeted(self):
-        rows = {}
         for e in self.entries:
             if isinstance(e, Custom) and e.type == "envelope":
                 if e.values[0].value == "allocate":
