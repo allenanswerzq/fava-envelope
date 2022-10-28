@@ -4,12 +4,9 @@
 {% if currency == None%}
 {% set currency = extension.get_currencies()[0]%}
 {% endif %}
-{% if extension.check_month_in_available_months(request.args.get('month'),currency) %}
-{% set month = request.args.get('month') %}
-{% endif %}
-{% if not month%}
-{% set month = extension.get_budgets_months_available(currency)[-1] %}
-{% endif %}
+
+{% set month = extension.generate_budget_df(currency, g.filtered) %}
+
 {% if extension.get_currencies() %}
 <div class="headerline">
   {% for c in extension.get_currencies() %}
@@ -18,23 +15,16 @@
 </div>
 {% endif %}
 
-<h3>{{ title }}</h3>
-
-<div class="headerline">
-  {% for m in extension.get_budgets_months_available(currency) %}
-  <h3><b>{% if not (module == m) %}<a href="{{ url_for('extension_report', report_name='EnvelopeBudget', month=m,currency=currency) }}">{{ m }}</a>{% else %} {{ m }}{% endif %}</b></h3>
-  {% endfor %}
-</div>
 <h3>{{ month }}</h3>
 
-{% set income_table = extension.generate_income_query_tables(month) %}
+{% set income_table = extension.generate_income_query_tables() %}
 {% if new_querytable %}
 {{ querytable.querytable(ledger, None, income_table[0], income_table[1]) }}
 {% else %}
 {{ querytable.querytable(None, income_table[0], income_table[1]) }}
 {% endif %}
 
-{% set envelope_table = extension.generate_envelope_query_tables(month) %}
+{% set envelope_table = extension.generate_envelope_query_tables() %}
 {% if new_querytable %}
 {{ querytable.querytable(ledger, None, envelope_table[0], envelope_table[1]) }}
 {% else %}
