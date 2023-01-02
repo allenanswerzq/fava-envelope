@@ -24,7 +24,7 @@
 {{ querytable.querytable(None, income_table[0], income_table[1]) }}
 {% endif %}
 
-{% set envelope_table = extension.generate_envelope_query_tables() %}
+{% set envelope_table = extension.generate_envelope_query_tables(month) %}
 {% if new_querytable %}
 {{ querytable.querytable(ledger, None, envelope_table[0], envelope_table[1]) }}
 {% else %}

@@ -63,10 +63,13 @@ class BudgetTree:
             if isinstance(e, data.Custom) and e.values[0].value in ("allocate", "task"):
                 self.add_children(self._parse_entry(e))
 
-    def _create_or_get(self, n):
-        if n not in self.node_map_:
-            self.node_map_[n] = BudgetTree(n=n)
-        return self.node_map_[n]
+    def _create_or_get(self, task, n):
+        # NOTE: for the same expenses, if task if different, we allocate
+        # different nodes
+        f = task + n
+        if f not in self.node_map_:
+            self.node_map_[f] = BudgetTree(n=n)
+        return self.node_map_[f]
 
     def _parse_entry(self, e):
         vals = [x.value for x in e.values[1:]]
@@ -82,13 +85,12 @@ class BudgetTree:
 
         budget = float(vals[-1])
 
-        ans = [ self._create_or_get(first) ]
+        ans = [ self._create_or_get(first, first) ]
         for i, k in enumerate(vals):
             if i == len(vals) - 1:
                 ans[-1].node_ = ans[-1].node_._replace(budget=str(budget))
-                ans[-1].node_ = ans[-1].node_._replace(actual=str(10))
                 break
-            cur = self._create_or_get(k)
+            cur = self._create_or_get(first, k)
             ans[-1].add_children(cur)
             ans.append(cur)
 
@@ -97,10 +99,12 @@ class BudgetTree:
 
         return ans[0]
 
-    def change_actual(self, n, v):
-        assert n in self.node_map_
-        changed = self.node_map_[n].node_._replace(actual=str(v))
-        self.node_map_[n].node_ = changed
+    def change_actual(self, task, n, v):
+        f = task + n
+        if f in self.node_map_:
+            assert f in self.node_map_
+            changed = self.node_map_[f].node_._replace(actual=str(v))
+            self.node_map_[f].node_ = changed
 
     def pretty_output(self):
         level = {}
