@@ -18,6 +18,7 @@ from beancount.core.number import Decimal
 from beancount.parser import options
 from beancount.query import query
 from dateutil.relativedelta import relativedelta
+from fava_envelope.modules import budget_tree
 
 
 class BeancountEnvelope:
@@ -28,6 +29,7 @@ class BeancountEnvelope:
         self.currency = currency
         self.negative_rollover = False
         self.months_ahead = 0
+        self.tree = budget_tree.BudgetTree()
 
         if self.currency:
             self.etype = "envelope" + self.currency
@@ -105,6 +107,16 @@ class BeancountEnvelope:
             months_ahead,
         )
 
+    def _fill_budget_tree(self):
+        self.tree.parse_entries(self.entries)
+        for index, row in self.envelope_df.iterrows():
+            actual = row["activity"]
+            name = row.name
+            if actual != 0:
+                self.tree.change_actual(name, actual)
+        self.tree.summarize()
+        self.tree.pretty_output()
+
     def envelope_tables(self):
         self.income_df = pd.DataFrame(columns=["Column1"])
         self.envelope_df = pd.DataFrame(columns=["budgeted", "activity", "available"])
@@ -142,10 +154,14 @@ class BeancountEnvelope:
         for _, row in self.envelope_df.iterrows():
             if row["available"] < Decimal(0.00):
                 overspent += Decimal(row["available"])
-        self.income_df.loc["Overspent"] = overspent
+        self.income_df.loc["Overspent"] = -overspent
 
         # Set Budgeted for month
-        self.income_df.loc["Budgeted"] = Decimal(-1 * self.envelope_df["budgeted"].sum())
+        self.income_df.loc["Budgeted"] = Decimal(self.envelope_df["budgeted"].sum())
+        self.income_df.loc["Activity"] = Decimal(self.envelope_df["activity"].sum())
+        self.income_df.loc["Available"] = Decimal(self.envelope_df["available"].sum())
+
+        self._fill_budget_tree()
 
         # print(self.income_df)
         # print(self.envelope_df)
@@ -235,13 +251,19 @@ class BeancountEnvelope:
                 self.envelope_df.loc[account, "available"] = Decimal(0.00)
 
     def _calc_budget_budgeted(self):
-        # rows = {}
         for e in self.entries:
             if isinstance(e, Custom) and e.type == self.etype:
 
                 # Check entry in date range
                 if e.date < self.date_start or e.date > self.date_end:
                     continue
-
                 if e.values[0].value == "allocate":
                     self.envelope_df.loc[e.values[1].value, "budgeted"] = Decimal(e.values[2].value)
+
+        # Remove no budgeted accounts
+        rows_to_drop = []
+        for index, row in self.envelope_df.iterrows():
+            if row["budgeted"] == 0:
+                rows_to_drop.append(index)
+
+        self.envelope_df = self.envelope_df.drop(rows_to_drop)

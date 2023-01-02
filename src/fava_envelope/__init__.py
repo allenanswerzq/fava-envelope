@@ -57,7 +57,7 @@ class EnvelopeBudget(FavaExtensionBase):
         )
         income_table_rows.append(
             {
-                "Name": "Overspent in prev month",
+                "Name": "Overspent",
                 "Amount": self.income_tables.loc["Overspent"]["Column1"],
             }
         )
@@ -65,6 +65,18 @@ class EnvelopeBudget(FavaExtensionBase):
             {
                 "Name": "Budgeted for month",
                 "Amount": self.income_tables.loc["Budgeted"]["Column1"],
+            }
+        )
+        income_table_rows.append(
+            {
+                "Name": "Total activity",
+                "Amount": self.income_tables.loc["Activity"]["Column1"],
+            }
+        )
+        income_table_rows.append(
+            {
+                "Name": "Total available",
+                "Amount": self.income_tables.loc["Available"]["Column1"],
             }
         )
         # income_table_rows.append(
