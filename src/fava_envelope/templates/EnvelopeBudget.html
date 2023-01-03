@@ -17,7 +17,7 @@
 
 <h3>{{ month }}</h3>
 
-{% set income_table = extension.generate_income_query_tables() %}
+{% set income_table = extension.generate_income_query_tables(month) %}
 {% if new_querytable %}
 {{ querytable.querytable(ledger, None, income_table[0], income_table[1]) }}
 {% else %}
@@ -26,7 +26,7 @@
 
 {% set envelope_table = extension.generate_envelope_query_tables(month) %}
 {% if new_querytable %}
-{{ querytable.querytable(ledger, None, envelope_table[0], envelope_table[1]) }}
+{{ querytable.querytable(ledger, None, envelope_table[0], envelope_table[1], skip_if_zero='Budgeted') }}
 {% else %}
-{{ querytable.querytable(None, envelope_table[0], envelope_table[1]) }}
+{{ querytable.querytable(None, envelope_table[0], envelope_table[1], skip_if_zero='Budgeted') }}
 {% endif %}

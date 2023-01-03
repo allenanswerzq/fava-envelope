@@ -31,8 +31,7 @@ class EnvelopeBudget(FavaExtensionBase):
             self.currency,
         ) = module.envelope_tables()
 
-        # return str(filtered._date_first)[0:-3]
-        return "2022-12"
+        return str(datetime.date.today())[0:-3]
 
     # def check_month_in_available_months(self, month, currency):
     #     if month:

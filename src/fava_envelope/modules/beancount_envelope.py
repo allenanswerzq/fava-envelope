@@ -36,7 +36,7 @@ class BeancountEnvelope:
         else:
             self.etype = "envelope"
 
-        (  _,
+        (  start_date,
            self.budget_accounts,
            self.mappings,
            self.income_accounts,
@@ -49,8 +49,9 @@ class BeancountEnvelope:
         decimal_precison = "0.00"
         self.Q = Decimal(decimal_precison)
 
-        self.date_start = date_start
-        self.date_end = date_end
+        today = datetime.date.today()
+        self.date_start = datetime.datetime.strptime(start_date, "%Y-%m").date()
+        self.date_end = datetime.date(today.year, today.month, today.day) + relativedelta(months=+self.months_ahead)
 
         self.price_map = prices.build_price_map(entries)
         self.acctypes = options.get_account_types(options_map)
@@ -137,7 +138,7 @@ class BeancountEnvelope:
         for i, row in self.envelope_df.iterrows():
             for index2, month in enumerate(self.months_):
                 if month not in row: continue
-                row[month, "available"] = row[month, "budgeted"] + row[month, "activity"]
+                row[month, "available"] = Decimal(row[month, "budgeted"]) + Decimal(row[month, "activity"])
                 # if index2 == 0:
                 #     row[month, "available"] = row[month, "budgeted"] + row[month, "activity"]
                 # else:
@@ -376,20 +377,8 @@ class BeancountEnvelope:
         months_to_drop = []
         for month in self.months_:
             if self.envelope_df[month, "budgeted"].sum() == 0:
-                months_to_drop.append((month, 'budgeted'))
-                months_to_drop.append((month, 'activity'))
-                months_to_drop.append((month, 'available'))
+                months_to_drop.append(month)
         self.envelope_df = self.envelope_df.drop(months_to_drop, axis=1)
-
-        # Then drop all rows that the budget equals to zero
-        # rows_to_drop = []
-        # for i, row in self.envelope_df.iterrows():
-        #     for m in self.months_:
-        #         k = (m, 'budgeted')
-        #         if k in row and row[k] == 0:
-        #             rows_to_drop.append(i)
-        #             break
-        # self.envelope_df = self.envelope_df.drop(rows_to_drop)
-        # TODO: use self.tree_ to filter the real budgeted rows
+        self.envelope_df.fillna(Decimal(0.00), inplace=True)
 
         # print(self.envelope_df)
