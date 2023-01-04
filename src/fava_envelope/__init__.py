@@ -31,7 +31,8 @@ class EnvelopeBudget(FavaExtensionBase):
             self.currency,
         ) = self.module.envelope_tables()
 
-        return str(datetime.date.today())[0:-3]
+        # return str(datetime.date.today())[0:-3]
+        return "2022-12"
 
     def get_budget_tree(self):
         return self.module.tree

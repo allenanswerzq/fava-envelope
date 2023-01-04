@@ -1,6 +1,11 @@
-{% set new_querytable = extension.use_new_querytable() %}
 {% import "_query_table.html" as querytable with context %}
 {% import '_tree_table.html' as tree_table with context %}
+{% import "_charts.html" as charts with context %}
+
+{% set root_tree = g.filtered.root_tree %}
+{% set options = ledger.options %}
+
+{% set new_querytable = extension.use_new_querytable() %}
 {% set currency = request.args.get('currency') %}
 {% if currency == None%}
 {% set currency = extension.get_currencies()[0]%}
@@ -31,5 +36,27 @@
 {% else %}
 {{ querytable.querytable(None, envelope_table[0], envelope_table[1], skip_if_zero='Budgeted') }}
 {% endif %}
+
+{% macro interval_budget(interval, extension, month, label=None, invert=False) %}
+{% do charts.chart_data.append({
+'type': 'bar',
+'label': 'Budget',
+'data': ledger.charts.interval_budget(g.filtered, interval, extension, month, g.conversion, invert=invert),
+}) %}
+{% endmacro %}
+
+
+{% macro sankey_budget(interval, extension, node) %}
+{% do charts.chart_data.append({
+'type': 'sankeyplot',
+'label': _('Sankey'),
+'data': ledger.charts.sankey_budget(g.filtered, interval, g.conversion, extension, node),
+}) %}
+{% endmacro %}
+
+
+{{ interval_budget(g.interval, extension, month) }}
+{{ sankey_budget(g.interval, extension, month) }}
+<script type="application/json" id="chart-data">{{ charts.chart_data|tojson }}</script>
 
 {{ tree_table.budget_tree(extension.get_budget_tree()) }}

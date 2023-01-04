@@ -1,7 +1,12 @@
+import datetime
+import queue
+
 from typing import NamedTuple, Any, List
 from collections import OrderedDict
 from beancount.core import data
 from beancount.core.number import Decimal
+from beancount.core import inventory
+from dateutil.relativedelta import relativedelta
 
 BudgetTreeNode = NamedTuple(
     'BudgetTreeNode', [
@@ -10,7 +15,7 @@ BudgetTreeNode = NamedTuple(
         ('actual', Any)])
 
 class BudgetTree:
-    def __init__(self, n="root", b=None, a=None) -> None:
+    def __init__(self, n="Budget Tree", b=None, a=None) -> None:
         self.node_ = BudgetTreeNode(name=n, budget=b, actual=a)
         # TODO: make order stable
         self.children_ = set()
@@ -45,18 +50,18 @@ class BudgetTree:
     def summarize(self):
         node_sum = {}
         def post(n : BudgetTree):
-            tot_budget = 0
-            if n.node_.budget: tot_budget += float(n.node_.budget)
+            tot_budget = Decimal(0)
+            tot_actual = Decimal(0)
+            if len(n.children_) == 0:
+                if n.node_.budget: tot_budget += Decimal(n.node_.budget)
+                if n.node_.actual: tot_actual += Decimal(n.node_.actual)
+            else:
+                for c in n.children_:
+                    tot_budget += node_sum[c][0]
+                    tot_actual += node_sum[c][1]
 
-            tot_actual = 0
-            if n.node_.actual: tot_actual += float(n.node_.actual)
-
-            for c in n.children_:
-                tot_budget += node_sum[c][0]
-                tot_actual += node_sum[c][1]
-
-            tot_budget = Decimal(tot_budget).quantize(Decimal("0.00"))
-            tot_actual = Decimal(tot_actual).quantize(Decimal("0.00"))
+            tot_budget = abs(Decimal(tot_budget).quantize(Decimal("0.00")))
+            tot_actual = abs(Decimal(tot_actual).quantize(Decimal("0.00")))
 
             node_sum[n] = (tot_budget, tot_actual)
             n.node_ = n.node_._replace(budget=str(tot_budget))
@@ -142,6 +147,81 @@ class BudgetTree:
                     print(f"{n.node_.name} [{t}] {c.node_.name}")
 
         self.dfs(pre=pre)
+
+    def find_node(self, node_name):
+        ans = None
+        def pre(n : BudgetTree):
+            nonlocal ans
+            if ans: return
+            if n.node_.name == node_name:
+                ans = n
+        self.dfs(pre=pre)
+        return ans
+
+    def bfs(self, func=None):
+        qu = queue.Queue()
+        qu.put(self)
+        while not qu.empty():
+            u = qu.get()
+            if func:
+                func(u)
+
+            for v in u.children_:
+                qu.put(v)
+
+    def sankey_budget(self, node_name):
+        root = self.find_node(node_name)
+        if root is None: return (None, None)
+
+        new_root = BudgetTree("root")
+        new_root.children_ = set([root])
+        root = new_root
+
+        new_root.summarize()
+        new_root.pretty_output()
+
+        nodes = set()
+        links = []
+        def pre(n: BudgetTree):
+            if len(n.children_) == 0:
+                nodes.add(n.node_.name)
+            else:
+                for c in n.children_:
+                    # t = float(c.node_.budget) + float(c.node_.actual)
+                    nodes.add(n.node_.name)
+                    nodes.add(c.node_.name)
+                    links.append([n.node_.name, c.node_.name, str(c.node_.budget)])
+                    # links.append([n.node_.name, c.node_.name, str(c.node_.actual)])
+
+        root.dfs(pre=pre)
+
+        return (list(nodes), links)
+
+    def interval_budget(self, node_name):
+        root = self.find_node(node_name)
+        assert root, node_name
+
+        begin = datetime.datetime.strptime("1970-01", "%Y-%m").date()
+        ans = []
+        def collect(n : BudgetTree):
+            nonlocal begin
+            begin += relativedelta(months=+1)
+            prefix = n.node_.name
+            balance = inventory.from_string(str(Decimal(n.node_.budget) - Decimal(n.node_.actual)) + ' CNY')
+            account_balances = {
+                prefix + "-budget" : balance,
+                prefix + "-actual" : inventory.from_string(n.node_.actual + ' CNY'),
+            }
+            ans.append((begin, balance, account_balances, {}))
+
+        root.bfs(func=collect)
+        return ans
+
+
+
+
+
+
 
 def test_basic():
     root = BudgetTree()
