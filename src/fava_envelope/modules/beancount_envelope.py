@@ -22,9 +22,9 @@ from fava_envelope.modules import budget_tree
 
 
 class BeancountEnvelope:
-    def __init__(self, entries, options_map, currency, date_start, date_end):
+    def __init__(self, filtered, options_map, currency, date_start, date_end):
 
-        self.entries = entries
+        self.entries = filtered.ledger.all_entries
         self.options_map = options_map
         self.currency = currency
         self.negative_rollover = False
@@ -53,7 +53,7 @@ class BeancountEnvelope:
         self.date_start = datetime.datetime.strptime(start_date, "%Y-%m").date()
         self.date_end = datetime.date(today.year, today.month, today.day) + relativedelta(months=+self.months_ahead)
 
-        self.price_map = prices.build_price_map(entries)
+        self.price_map = prices.build_price_map(self.entries)
         self.acctypes = options.get_account_types(options_map)
 
         assert self.date_start
@@ -120,6 +120,7 @@ class BeancountEnvelope:
                     self.tree.change_actual(month, name, actual)
         self.tree.summarize()
         self.tree.pretty_output()
+        # self.tree.sankey_output()
 
     def _get_months(self):
         self.months_ = []

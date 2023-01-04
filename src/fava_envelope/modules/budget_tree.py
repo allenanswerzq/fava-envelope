@@ -1,5 +1,7 @@
 from typing import NamedTuple, Any, List
+from collections import OrderedDict
 from beancount.core import data
+from beancount.core.number import Decimal
 
 BudgetTreeNode = NamedTuple(
     'BudgetTreeNode', [
@@ -10,6 +12,7 @@ BudgetTreeNode = NamedTuple(
 class BudgetTree:
     def __init__(self, n="root", b=None, a=None) -> None:
         self.node_ = BudgetTreeNode(name=n, budget=b, actual=a)
+        # TODO: make order stable
         self.children_ = set()
         self.visit_ = set()
         self.node_map_ = {}
@@ -52,6 +55,9 @@ class BudgetTree:
                 tot_budget += node_sum[c][0]
                 tot_actual += node_sum[c][1]
 
+            tot_budget = Decimal(tot_budget).quantize(Decimal("0.00"))
+            tot_actual = Decimal(tot_actual).quantize(Decimal("0.00"))
+
             node_sum[n] = (tot_budget, tot_actual)
             n.node_ = n.node_._replace(budget=str(tot_budget))
             n.node_ = n.node_._replace(actual=str(tot_actual))
@@ -76,12 +82,15 @@ class BudgetTree:
         assert len(vals) >= 2, "allocate A 100"
 
         # Use month to create the first node
-        first = str(e.date)[0:-3]
+        month = str(e.date)[0:-3]
+        first = "monthly"
         if e.values[0].value == "task":
             # TODO: This is a Task budget, counted in both month budget and task
             # budget, find txns with same link or tag to count the actual
-            first = vals[0]
-            vals = vals[1:]
+            first = "tasks"
+        else:
+            # Add month to be first node
+            vals.insert(0, month)
 
         budget = float(vals[-1])
 
@@ -90,7 +99,7 @@ class BudgetTree:
             if i == len(vals) - 1:
                 ans[-1].node_ = ans[-1].node_._replace(budget=str(budget))
                 break
-            cur = self._create_or_get(first, k)
+            cur = self._create_or_get(first + month, k)
             ans[-1].add_children(cur)
             ans.append(cur)
 
@@ -99,12 +108,15 @@ class BudgetTree:
 
         return ans[0]
 
-    def change_actual(self, task, n, v):
-        f = task + n
-        if f in self.node_map_:
-            assert f in self.node_map_
-            changed = self.node_map_[f].node_._replace(actual=str(v))
-            self.node_map_[f].node_ = changed
+    def change_actual(self, month, n, v):
+        for p in ("monthly", "tasks"):
+            f = p + month + n
+            if f in self.node_map_:
+                changed = self.node_map_[f].node_._replace(actual=str(v))
+                self.node_map_[f].node_ = changed
+                return
+
+        # assert False, f"{month} {n}"
 
     def pretty_output(self):
         level = {}

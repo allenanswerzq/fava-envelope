@@ -20,8 +20,8 @@ class EnvelopeBudget(FavaExtensionBase):
 
     def generate_budget_df(self, currency, filtered):
         self.currency = currency
-        module = BeancountEnvelope(
-            filtered.entries, self.ledger.options, self.currency,
+        self.module = BeancountEnvelope(
+            filtered, self.ledger.options, self.currency,
             filtered._date_first,
             filtered._date_last
         )
@@ -29,9 +29,12 @@ class EnvelopeBudget(FavaExtensionBase):
             self.income_tables,
             self.envelope_tables,
             self.currency,
-        ) = module.envelope_tables()
+        ) = self.module.envelope_tables()
 
         return str(datetime.date.today())[0:-3]
+
+    def get_budget_tree(self):
+        return self.module.tree
 
     # def check_month_in_available_months(self, month, currency):
     #     if month:

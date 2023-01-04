@@ -1,5 +1,6 @@
 {% set new_querytable = extension.use_new_querytable() %}
 {% import "_query_table.html" as querytable with context %}
+{% import '_tree_table.html' as tree_table with context %}
 {% set currency = request.args.get('currency') %}
 {% if currency == None%}
 {% set currency = extension.get_currencies()[0]%}
@@ -30,3 +31,5 @@
 {% else %}
 {{ querytable.querytable(None, envelope_table[0], envelope_table[1], skip_if_zero='Budgeted') }}
 {% endif %}
+
+{{ tree_table.budget_tree(extension.get_budget_tree()) }}
