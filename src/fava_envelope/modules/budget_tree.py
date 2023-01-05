@@ -158,10 +158,12 @@ class BudgetTree:
         return ans
 
     def sankey_budget(self, filtered, node=None):
-        date_last = filtered._date_last + datetime.timedelta(-1)
-        month = str(date_last)[0:-3]
+        if node is None:
+            # NOTE: if node is provided by click a link, use node to render
+            date_last = filtered._date_last + datetime.timedelta(-1)
+            node = str(date_last)[0:-3]
 
-        root = self.find_node(month)
+        root = self.find_node(node)
         if root is None: return (None, None)
 
         new_root = BudgetTree("root")

@@ -20,27 +20,27 @@
 {% endif %}
 
 {% set month = extension.generate_budget_df(currency, g.filtered) %}
+{% set node_name = request.args.get('node_name') %}
 
 {% macro interval_budget(interval, extension, label=None, invert=False) %}
 {% do charts.chart_data.append({
 'type': 'bar',
-'label': 'Budget',
+'label': 'Year',
 'data': ledger.charts.interval_budget(g.filtered, interval, extension, g.conversion, invert=invert),
 }) %}
 {% endmacro %}
 
-
-{% macro sankey_budget(interval, extension) %}
+{% macro sankey_budget(interval, extension, node_name) %}
 {% do charts.chart_data.append({
 'type': 'sankeyplot',
 'label': _('Sankey'),
-'data': ledger.charts.sankey_budget(g.filtered, interval, g.conversion, extension),
+'data': ledger.charts.sankey_budget(g.filtered, interval, g.conversion, extension, node=node_name),
 }) %}
 {% endmacro %}
 
 
+{{ sankey_budget(g.interval, extension, node_name) }}
 {{ interval_budget(g.interval, extension) }}
-{{ sankey_budget(g.interval, extension) }}
 <script type="application/json" id="chart-data">{{ charts.chart_data|tojson }}</script>
 
 {{ tree_table.budget_tree(extension.get_budget_tree()) }}
