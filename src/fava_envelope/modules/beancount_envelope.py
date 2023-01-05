@@ -116,8 +116,18 @@ class BeancountEnvelope:
                 if k not in row: continue
                 actual = row[month, "activity"]
                 name = row.name
-                if actual != 0:
-                    self.tree.change_actual(month, name, actual)
+                if not actual.is_nan():
+                    self.tree.change_actual("monthly", month, name, actual)
+
+        for i, row in self.year_actual.iterrows():
+            for year in self.years_:
+                # NOTE: year budget must be created at the first month of a year
+                month = year.split("-")[1] + "-01"
+                actual = Decimal(row[year])
+                name = row.name
+                if not actual.is_nan():
+                    self.tree.change_actual("tasks", month, name, actual)
+
         self.tree.summarize()
         self.tree.pretty_output()
         # self.tree.sankey_output()
@@ -232,10 +242,18 @@ class BeancountEnvelope:
         #         self.income_df[month].sum()
         #     )
 
+    def _get_years(self):
+        ans = set()
+        for m in self.months_:
+            ans.add("budget-" + str(m).split("-")[0])
+        return list(ans)
+
     def envelope_tables(self):
         self.months_ = self._get_months()
+        self.years_ = self._get_years()
         # Create Income DataFrame
         self.income_df = pd.DataFrame(columns=self.months_)
+        self.year_actual = pd.DataFrame(columns=self.years_)
 
         # Create Envelopes DataFrame
         column_index = pd.MultiIndex.from_product(
@@ -360,6 +378,13 @@ class BeancountEnvelope:
                     self.envelope_df.loc[account, (m, "budgeted")] = Decimal(0.00)
                     self.envelope_df.loc[account, (m, "activity")] = Decimal(temp)
                     self.envelope_df.loc[account, (m, "available")] = Decimal(0.00)
+
+                    year_ss = "budget-" + str(month[0])
+                    if (account, year_ss) in self.year_actual:
+                        self.year_actual.loc[account, year_ss] += Decimal(temp)
+                    else:
+                        self.year_actual.loc[account, year_ss] = Decimal(temp)
+
         # print(self.envelope_df)
 
     def _calc_budget_budgeted(self):
@@ -371,8 +396,8 @@ class BeancountEnvelope:
 
                 if e.values[0].value == "allocate":
                     month = f"{e.date.year}-{e.date.month:02}"
-                    self.envelope_df.loc[e.values[1].value, (month, "budgeted")
-                    ] = Decimal(e.values[2].value)
+                    vals = [x.value for x in e.values]
+                    self.envelope_df.loc[vals[-2], (month, "budgeted")] = Decimal(vals[-1])
 
         # First drop all months that have no budget
         months_to_drop = []

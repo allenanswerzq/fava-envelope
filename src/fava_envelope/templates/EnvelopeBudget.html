@@ -11,8 +11,6 @@
 {% set currency = extension.get_currencies()[0]%}
 {% endif %}
 
-{% set month = extension.generate_budget_df(currency, g.filtered) %}
-
 {% if extension.get_currencies() %}
 <div class="headerline">
   {% for c in extension.get_currencies() %}
@@ -21,42 +19,28 @@
 </div>
 {% endif %}
 
-<h3>{{ month }}</h3>
+{% set month = extension.generate_budget_df(currency, g.filtered) %}
 
-{% set income_table = extension.generate_income_query_tables(month) %}
-{% if new_querytable %}
-{{ querytable.querytable(ledger, None, income_table[0], income_table[1]) }}
-{% else %}
-{{ querytable.querytable(None, income_table[0], income_table[1]) }}
-{% endif %}
-
-{% set envelope_table = extension.generate_envelope_query_tables(month) %}
-{% if new_querytable %}
-{{ querytable.querytable(ledger, None, envelope_table[0], envelope_table[1], skip_if_zero='Budgeted') }}
-{% else %}
-{{ querytable.querytable(None, envelope_table[0], envelope_table[1], skip_if_zero='Budgeted') }}
-{% endif %}
-
-{% macro interval_budget(interval, extension, month, label=None, invert=False) %}
+{% macro interval_budget(interval, extension, label=None, invert=False) %}
 {% do charts.chart_data.append({
 'type': 'bar',
 'label': 'Budget',
-'data': ledger.charts.interval_budget(g.filtered, interval, extension, month, g.conversion, invert=invert),
+'data': ledger.charts.interval_budget(g.filtered, interval, extension, g.conversion, invert=invert),
 }) %}
 {% endmacro %}
 
 
-{% macro sankey_budget(interval, extension, node) %}
+{% macro sankey_budget(interval, extension) %}
 {% do charts.chart_data.append({
 'type': 'sankeyplot',
 'label': _('Sankey'),
-'data': ledger.charts.sankey_budget(g.filtered, interval, g.conversion, extension, node),
+'data': ledger.charts.sankey_budget(g.filtered, interval, g.conversion, extension),
 }) %}
 {% endmacro %}
 
 
-{{ interval_budget(g.interval, extension, month) }}
-{{ sankey_budget(g.interval, extension, month) }}
+{{ interval_budget(g.interval, extension) }}
+{{ sankey_budget(g.interval, extension) }}
 <script type="application/json" id="chart-data">{{ charts.chart_data|tojson }}</script>
 
 {{ tree_table.budget_tree(extension.get_budget_tree()) }}

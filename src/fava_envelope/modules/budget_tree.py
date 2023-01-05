@@ -1,12 +1,12 @@
 import datetime
-import queue
+import re
 
 from typing import NamedTuple, Any, List
-from collections import OrderedDict
 from beancount.core import data
 from beancount.core.number import Decimal
 from beancount.core import inventory
 from dateutil.relativedelta import relativedelta
+from fava_envelope.modules import ordered_set
 
 BudgetTreeNode = NamedTuple(
     'BudgetTreeNode', [
@@ -17,8 +17,7 @@ BudgetTreeNode = NamedTuple(
 class BudgetTree:
     def __init__(self, n="Budget Tree", b=None, a=None) -> None:
         self.node_ = BudgetTreeNode(name=n, budget=b, actual=a)
-        # TODO: make order stable
-        self.children_ = set()
+        self.children_ = ordered_set.OrderedSet()
         self.visit_ = set()
         self.node_map_ = {}
 
@@ -113,13 +112,13 @@ class BudgetTree:
 
         return ans[0]
 
-    def change_actual(self, month, n, v):
-        for p in ("monthly", "tasks"):
-            f = p + month + n
-            if f in self.node_map_:
-                changed = self.node_map_[f].node_._replace(actual=str(v))
-                self.node_map_[f].node_ = changed
-                return
+    def change_actual(self, prefix, month, n, v):
+        f = prefix + month + n
+        if f in self.node_map_:
+            changed = self.node_map_[f].node_._replace(actual=str(v))
+            self.node_map_[f].node_ = changed
+            return True
+        return False
 
         # assert False, f"{month} {n}"
 
@@ -158,19 +157,11 @@ class BudgetTree:
         self.dfs(pre=pre)
         return ans
 
-    def bfs(self, func=None):
-        qu = queue.Queue()
-        qu.put(self)
-        while not qu.empty():
-            u = qu.get()
-            if func:
-                func(u)
+    def sankey_budget(self, filtered, node=None):
+        date_last = filtered._date_last + datetime.timedelta(-1)
+        month = str(date_last)[0:-3]
 
-            for v in u.children_:
-                qu.put(v)
-
-    def sankey_budget(self, node_name):
-        root = self.find_node(node_name)
+        root = self.find_node(month)
         if root is None: return (None, None)
 
         new_root = BudgetTree("root")
@@ -180,48 +171,75 @@ class BudgetTree:
         new_root.summarize()
         new_root.pretty_output()
 
-        nodes = set()
+        nodes = ordered_set.OrderedSet()
         links = []
+        id_map = { root: 100 }
         def pre(n: BudgetTree):
-            if len(n.children_) == 0:
-                nodes.add(n.node_.name)
-            else:
-                for c in n.children_:
-                    # t = float(c.node_.budget) + float(c.node_.actual)
-                    nodes.add(n.node_.name)
-                    nodes.add(c.node_.name)
-                    links.append([n.node_.name, c.node_.name, str(c.node_.budget)])
-                    # links.append([n.node_.name, c.node_.name, str(c.node_.actual)])
+            # NOTE: maintain a order to make sankey graph looks nice
+            children = list(n.children_)
+            children.sort(key=lambda n : float(n.node_.budget), reverse=True)
+
+            for i, c in enumerate(children):
+                assert n in id_map
+                id = id_map[n]
+                nn = str(id) + "_" + n.node_.name
+                nc = str(id * 100 + i) + "_" + c.node_.name
+                id_map[c] = id * 100 + i
+                nodes.add(nn)
+                nodes.add(nc)
+                val = str(c.node_.budget).strip()
+                val += ' '
+                val += str(c.node_.actual).strip()
+                links.append([nn, nc, val])
 
         root.dfs(pre=pre)
-
         return (list(nodes), links)
 
-    def interval_budget(self, node_name):
-        root = self.find_node(node_name)
-        assert root, node_name
+    def bfs(self, func=None):
+        qu = []
+        qu.append(self)
+        i = 0
+        while i < len(qu):
+            u = qu[i]
+            if func: func(u)
 
-        begin = datetime.datetime.strptime("1970-01", "%Y-%m").date()
+            for v in u.children_:
+                qu.append(v)
+
+            i += 1
+
+    def interval_budget(self, filtered):
+        # Show month data for a whole year, first find the year budget
+        # we use the end date for selected txns as the budget year
+        date_last = filtered._date_last + datetime.timedelta(-1)
+        year = str(date_last.year)
         ans = []
+        begin = datetime.datetime.strptime("1970-01", "%Y-%m").date()
         def collect(n : BudgetTree):
+            assert n
             nonlocal begin
-            begin += relativedelta(months=+1)
-            prefix = n.node_.name
+            ok = False
+            if re.match("\d\d\d\d-\d\d", n.node_.name) and n.node_.name.startswith(year):
+                begin += relativedelta(months=+1)
+                ok = True
+
+            elif re.match("budget-\d\d\d\d", n.node_.name) and n.node_.name.endswith(year):
+                begin += relativedelta(months=+1)
+                ok = True
+
+            if not ok: return
+
             balance = inventory.from_string(str(Decimal(n.node_.budget) - Decimal(n.node_.actual)) + ' CNY')
             account_balances = {
-                prefix + "-budget" : balance,
-                prefix + "-actual" : inventory.from_string(n.node_.actual + ' CNY'),
+                n.node_.name + "-budget" : balance,
+                n.node_.name + "-actual" : inventory.from_string(n.node_.actual + ' CNY'),
             }
             ans.append((begin, balance, account_balances, {}))
 
-        root.bfs(func=collect)
+        self.bfs(func=collect)
+        # sort to put year buget at the beginning
+        ans.sort(key=lambda x : list(x[2].keys())[0], reverse=True)
         return ans
-
-
-
-
-
-
 
 def test_basic():
     root = BudgetTree()

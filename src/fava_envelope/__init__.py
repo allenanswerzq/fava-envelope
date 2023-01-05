@@ -31,17 +31,10 @@ class EnvelopeBudget(FavaExtensionBase):
             self.currency,
         ) = self.module.envelope_tables()
 
-        # return str(datetime.date.today())[0:-3]
-        return "2022-12"
+        return None
 
     def get_budget_tree(self):
         return self.module.tree
-
-    # def check_month_in_available_months(self, month, currency):
-    #     if month:
-    #         if month in self.get_budgets_months_available(currency):
-    #             return True
-    #     return False
 
     def get_currencies(self):
         if "currencies" in self.config:
@@ -80,18 +73,6 @@ class EnvelopeBudget(FavaExtensionBase):
                     "Amount": self.income_tables[month]["Budgeted"],
                 }
             )
-            # income_table_rows.append(
-            #     {
-            #         "Name": "To be budgeted for month",
-            #         "Amount": self.income_tables[month]["To Be Budgeted"],
-            #     }
-            # )
-            # income_table_rows.append(
-            #     {
-            #         "Name": "Budgeted in the future",
-            #         "Amount": self.income_tables[month]["Budgeted Future"],
-            #     }
-            # )
 
         return income_table_types, income_table_rows
 
