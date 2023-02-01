@@ -254,6 +254,7 @@ class BeancountEnvelope:
         # Create Income DataFrame
         self.income_df = pd.DataFrame(columns=self.months_)
         self.year_actual = pd.DataFrame(columns=self.years_)
+        self.year_actual.index.name = "Actual"
 
         # Create Envelopes DataFrame
         column_index = pd.MultiIndex.from_product(
@@ -380,12 +381,16 @@ class BeancountEnvelope:
                     self.envelope_df.loc[account, (m, "available")] = Decimal(0.00)
 
                     year_ss = "budget-" + str(month[0])
-                    if (account, year_ss) in self.year_actual:
-                        self.year_actual.loc[account, year_ss] += Decimal(temp)
+                    if account in self.year_actual.index:
+                        if pd.isna(self.year_actual.loc[account, year_ss]):
+                            self.year_actual.loc[account, year_ss] = Decimal(temp)
+                        else:
+                            self.year_actual.loc[account, year_ss] += Decimal(temp)
                     else:
                         self.year_actual.loc[account, year_ss] = Decimal(temp)
 
         # print(self.envelope_df)
+        # print(self.year_actual)
 
     def _calc_budget_budgeted(self):
         for e in self.entries:

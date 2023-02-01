@@ -243,7 +243,7 @@ class BudgetTree:
 
         self.bfs(func=collect)
         # sort to put year buget at the beginning
-        ans.sort(key=lambda x : list(x[2].keys())[0], reverse=True)
+        # ans.sort(key=lambda x : list(x[2].keys())[0], reverse=True)
         return ans
 
 def test_basic():
