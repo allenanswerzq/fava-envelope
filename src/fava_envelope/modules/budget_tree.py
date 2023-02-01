@@ -49,6 +49,9 @@ class BudgetTree:
     def summarize(self):
         node_sum = {}
         def post(n : BudgetTree):
+            if n.node_.name in ("Budget Tree", "tasks"):
+                return
+
             tot_budget = Decimal(0)
             tot_actual = Decimal(0)
             if len(n.children_) == 0:
