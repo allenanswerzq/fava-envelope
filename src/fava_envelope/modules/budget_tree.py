@@ -164,7 +164,10 @@ class BudgetTree:
             node = str(date_last)[0:-3]
 
         root = self.find_node(node)
-        if root is None: return (None, None)
+        if root is None:
+            year = "budget-" + str(datetime.datetime.today())[0:4]
+            root = self.find_node(year)
+            assert root, year
 
         new_root = BudgetTree("root")
         new_root.children_ = set([root])
