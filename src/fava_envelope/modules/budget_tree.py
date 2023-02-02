@@ -1,7 +1,7 @@
 import datetime
 import re
 
-from typing import NamedTuple, Any, List
+from typing import NamedTuple, Any, List, Set
 from beancount.core import data
 from beancount.core.number import Decimal
 from beancount.core import inventory
@@ -20,6 +20,7 @@ class BudgetTree:
         self.children_ = ordered_set.OrderedSet()
         self.visit_ = set()
         self.node_map_ = {}
+        self.tasks_ = set()
 
     def add_children(self, child):
         self.children_.add(child)
@@ -49,7 +50,7 @@ class BudgetTree:
     def summarize(self):
         node_sum = {}
         def post(n : BudgetTree):
-            if n.node_.name in ("Budget Tree", "tasks"):
+            if n.node_.name in ("Budget Tree", "tasks", "monthly"):
                 return
 
             tot_budget = Decimal(0)
@@ -76,10 +77,19 @@ class BudgetTree:
             if isinstance(e, data.Custom) and e.values[0].value in ("allocate", "task"):
                 self.add_children(self._parse_entry(e))
 
-    def _create_or_get(self, task, n):
+    def change_actual(self, task, month, n, v):
+        f = task + month + n
+        if f in self.node_map_:
+            changed = self.node_map_[f].node_._replace(actual=str(v))
+            self.node_map_[f].node_ = changed
+            return True
+
+        return False
+
+    def _create_or_get(self, task, month, n):
         # NOTE: for the same expenses, if task if different, we allocate
         # different nodes
-        f = task + n
+        f = task + month + n
         if f not in self.node_map_:
             self.node_map_[f] = BudgetTree(n=n)
         return self.node_map_[f]
@@ -95,18 +105,21 @@ class BudgetTree:
             # TODO: This is a Task budget, counted in both month budget and task
             # budget, find txns with same link or tag to count the actual
             first = "tasks"
+            if not vals[0].startswith("budget-"):
+                self.tasks_.add(vals[0])
+                month = ""
         else:
             # Add month to be first node
             vals.insert(0, month)
 
         budget = float(vals[-1])
 
-        ans = [ self._create_or_get(first, first) ]
+        ans = [ self._create_or_get(first, first, first) ]
         for i, k in enumerate(vals):
             if i == len(vals) - 1:
                 ans[-1].node_ = ans[-1].node_._replace(budget=str(budget))
                 break
-            cur = self._create_or_get(first + month, k)
+            cur = self._create_or_get(first, month, k)
             ans[-1].add_children(cur)
             ans.append(cur)
 
@@ -114,16 +127,6 @@ class BudgetTree:
         #     print(x.node_, x, x.children_)
 
         return ans[0]
-
-    def change_actual(self, prefix, month, n, v):
-        f = prefix + month + n
-        if f in self.node_map_:
-            changed = self.node_map_[f].node_._replace(actual=str(v))
-            self.node_map_[f].node_ = changed
-            return True
-        return False
-
-        # assert False, f"{month} {n}"
 
     def pretty_output(self):
         level = {}

@@ -29,7 +29,10 @@ class BeancountEnvelope:
         self.currency = currency
         self.negative_rollover = False
         self.months_ahead = 0
+
         self.tree = budget_tree.BudgetTree()
+        self.tree.parse_entries(self.entries)
+        self.tasks_ = self.tree.tasks_
 
         if self.currency:
             self.etype = "envelope" + self.currency
@@ -109,7 +112,6 @@ class BeancountEnvelope:
         )
 
     def _fill_budget_tree(self):
-        self.tree.parse_entries(self.entries)
         for i, row in self.envelope_df.iterrows():
             for month in self.months_:
                 k = (month, "activity")
@@ -125,8 +127,17 @@ class BeancountEnvelope:
                 month = year.split("-")[1] + "-01"
                 actual = Decimal(row[year])
                 name = row.name
+                if "Misc:Family" in name:
+                    print("AAAAAAAAAAAA", month, name, actual)
                 if not actual.is_nan():
                     self.tree.change_actual("tasks", month, name, actual)
+
+        for i, row in self.task_df.iterrows():
+            for task in self.tasks_:
+                actual = Decimal(row[task])
+                name = row.name
+                if not actual.is_nan():
+                    self.tree.change_actual("tasks", "", name, actual)
 
         self.tree.summarize()
         self.tree.pretty_output()
@@ -150,21 +161,6 @@ class BeancountEnvelope:
             for index2, month in enumerate(self.months_):
                 if month not in row: continue
                 row[month, "available"] = Decimal(row[month, "budgeted"]) + Decimal(row[month, "activity"])
-                # if index2 == 0:
-                #     row[month, "available"] = row[month, "budgeted"] + row[month, "activity"]
-                # else:
-                #     if (self.months_[index2 - 1], "available") not in row: continue
-                #     prev_available = row[self.months_[index2 - 1], "available"]
-                #     if prev_available > 0 or self.negative_rollover:
-                #         row[month, "available"] = (
-                #             prev_available
-                #             + row[month, "budgeted"]
-                #             + row[month, "activity"]
-                #         )
-                #     else:
-                #         row[month, "available"] = (
-                #             row[month, "budgeted"] + row[month, "activity"]
-                #         )
 
     def _set_start_balance(self):
         # Calculate Starting Balance Income
@@ -201,46 +197,7 @@ class BeancountEnvelope:
         for month in self.months_:
             if (month, "budgeted") in self.envelope_df:
                 self.income_df.loc["Budgeted", month] = Decimal(
-                    -1 * self.envelope_df[month, "budgeted"].sum()
-                )
-
-        # Adjust Avail Income
-        # for index, month in enumerate(self.months_):
-        #     if index == 0:
-        #         continue
-        #     else:
-        #         prev_month = self.months_[index - 1]
-        #         self.income_df.loc["Avail Income", month] = (
-        #             self.income_df.loc["Avail Income", month]
-        #             + self.income_df.loc["Avail Income", prev_month]
-        #             + self.income_df.loc["Overspent", prev_month]
-        #             + self.income_df.loc["Budgeted", prev_month]
-        #         )
-
-        # # Set Budgeted in the future
-        # for index, month in enumerate(self.months_):
-        #     sum_total = self.income_df[month].sum()
-        #     if (index == len(self.months_) - 1) or sum_total < 0:
-        #         self.income_df.loc["Budgeted Future", month] = Decimal(0.00)
-        #     else:
-        #         next_month = self.months_[index + 1]
-        #         opp_budgeted_next_month = (
-        #             self.income_df.loc["Budgeted", next_month] * -1
-        #         )
-        #         if opp_budgeted_next_month < sum_total:
-        #             self.income_df.loc["Budgeted Future", month] = Decimal(
-        #                 -1 * opp_budgeted_next_month
-        #             )
-        #         else:
-        #             self.income_df.loc["Budgeted Future", month] = Decimal(
-        #                 -1 * sum_total
-        #             )
-
-        # # Set to be budgeted
-        # for index, month in enumerate(self.months_):
-        #     self.income_df.loc["To Be Budgeted", month] = Decimal(
-        #         self.income_df[month].sum()
-        #     )
+                    -1 * self.envelope_df[month, "budgeted"].sum())
 
     def _get_years(self):
         ans = set()
@@ -254,7 +211,7 @@ class BeancountEnvelope:
         # Create Income DataFrame
         self.income_df = pd.DataFrame(columns=self.months_)
         self.year_actual = pd.DataFrame(columns=self.years_)
-        self.year_actual.index.name = "Actual"
+        self.year_actual.index.name = "Account"
 
         # Create Envelopes DataFrame
         column_index = pd.MultiIndex.from_product(
@@ -264,10 +221,13 @@ class BeancountEnvelope:
         self.envelope_df.index.name = "Envelopes"
         self.envelope_df.fillna(Decimal(0.00), inplace=True)
 
-        # TODO: add task data frame to count task budget
+        self.task_df = pd.DataFrame(columns=["activity"])
+        self.task_df.index.name = "Tasks"
 
-        self._calculate_budget_activity()
+        self._calc_budget_activity()
         self._calc_budget_budgeted()
+        self._calc_budget_tasks()
+
         self._set_start_balance()
         self._set_available()
         self._set_overspent()
@@ -278,7 +238,75 @@ class BeancountEnvelope:
         # print(self.envelope_df)
         return self.income_df, self.envelope_df, self.currency
 
-    def _calculate_budget_activity(self):
+    def _calc_budget_tasks(self):
+        balances = collections.defaultdict(
+            lambda: collections.defaultdict(inventory.Inventory))
+
+        for entry in data.filter_txns(self.entries):
+            # Check entry in date range
+            if entry.date < self.date_start or entry.date > self.date_end:
+                continue
+
+            tasks = (entry.tags | entry.links) & self.tasks_
+            if len(tasks) == 0:
+                continue
+
+            contains_budget_accounts = False
+            for posting in entry.postings:
+                if any(regexp.match(posting.account) for regexp in self.budget_accounts):
+                    contains_budget_accounts = True
+                    break
+            if not contains_budget_accounts:
+                continue
+
+            for posting in entry.postings:
+                account = posting.account
+                for regexp, target_account in self.mappings:
+                    if regexp.match(account):
+                        account = target_account
+                        break
+
+                account_type = account_types.get_account_type(account)
+                if posting.units.currency != self.currency:
+                    orig = posting.units.number
+                    if posting.price is not None:
+                        converted = posting.price.number * orig
+                        posting = data.Posting(
+                            posting.account,
+                            amount.Amount(converted, self.currency),
+                            posting.cost,
+                            None,
+                            posting.flag,
+                            posting.meta)
+                    else:
+                        continue
+
+                if account_type == self.acctypes.income or (any(regexp.match(account) for regexp in self.income_accounts)):
+                    account = "Income"
+                elif any(regexp.match(posting.account) for regexp in self.budget_accounts):
+                    continue
+
+                for task in tasks:
+                    balances[account][task].add_position(posting)
+
+        # Reduce the final balances to numbers
+        for account, tasks in sorted(balances.items()):
+            for task, balance in sorted(tasks.items()):
+                balance = balance.reduce(convert.get_value, self.price_map)
+                balance = balance.reduce(convert.convert_position, self.currency, self.price_map)
+                pos = balance.get_only_position()
+                total = pos.units.number if pos and pos.units else None
+
+                if account in self.task_df.index:
+                    if pd.isna(self.task_df.loc[account, task]):
+                        self.task_df.loc[account, task] = total
+                    else:
+                        self.task_df.loc[account, task] += total
+                else:
+                    self.task_df.loc[account, task] = total
+
+
+    def _calc_budget_activity(self):
         # Accumulate expenses for the period
         balances = collections.defaultdict(
             lambda: collections.defaultdict(inventory.Inventory)
