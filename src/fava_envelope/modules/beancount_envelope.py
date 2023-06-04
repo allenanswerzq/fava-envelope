@@ -127,8 +127,6 @@ class BeancountEnvelope:
                 month = year.split("-")[1] + "-01"
                 actual = Decimal(row[year])
                 name = row.name
-                if "Misc:Family" in name:
-                    print("AAAAAAAAAAAA", month, name, actual)
                 if not actual.is_nan():
                     self.tree.change_actual("tasks", month, name, actual)
 
@@ -321,7 +319,6 @@ class BeancountEnvelope:
             month = (entry.date.year, entry.date.month)
             # TODO domwe handle no transaction in a month?
             all_months.add(month)
-
             contains_budget_accounts = False
             for posting in entry.postings:
                 if any(regexp.match(posting.account) for regexp in self.budget_accounts):
@@ -360,6 +357,7 @@ class BeancountEnvelope:
                 ):
                     account = "Income"
                 elif any(regexp.match(posting.account) for regexp in self.budget_accounts):
+                    # print("AAAAAAAAAAA", posting.account)
                     continue
                 # TODO WARn of any assets / liabilities left
 
@@ -373,9 +371,7 @@ class BeancountEnvelope:
             for month, balance in sorted(months.items()):
                 year, mth = month
                 date = datetime.date(year, mth, 1)
-                balance = balance.reduce(
-                    convert.get_value, self.price_map, date
-                )
+                balance = balance.reduce(convert.get_value, self.price_map, date)
                 balance = balance.reduce(
                     convert.convert_position,
                     self.currency,
@@ -407,7 +403,6 @@ class BeancountEnvelope:
                     self.envelope_df.loc[account, (m, "budgeted")] = Decimal(0.00)
                     self.envelope_df.loc[account, (m, "activity")] = Decimal(temp)
                     self.envelope_df.loc[account, (m, "available")] = Decimal(0.00)
-
                     year_ss = "budget-" + str(month[0])
                     if account in self.year_actual.index:
                         if pd.isna(self.year_actual.loc[account, year_ss]):

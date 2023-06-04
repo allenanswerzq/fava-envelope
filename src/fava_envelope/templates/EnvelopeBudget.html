@@ -39,8 +39,9 @@
 {% endmacro %}
 
 
-{{ sankey_budget(g.interval, extension, node_name) }}
 {{ interval_budget(g.interval, extension) }}
+
+{{ sankey_budget(g.interval, extension, node_name) }}
 <script type="application/json" id="chart-data">{{ charts.chart_data|tojson }}</script>
 
 {{ tree_table.budget_tree(extension.get_budget_tree()) }}
