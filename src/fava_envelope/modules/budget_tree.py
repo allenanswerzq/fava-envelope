@@ -21,6 +21,7 @@ class BudgetTree:
         self.visit_ = set()
         self.node_map_ = {}
         self.tasks_ = set()
+        self.max_date_ = datetime.date.today()
 
     def add_children(self, child):
         self.children_.add(child)
@@ -100,6 +101,7 @@ class BudgetTree:
 
         # Use month to create the first node
         month = str(e.date)[0:-3]
+        self.max_date_ = max(self.max_date_, e.date)
         first = "monthly"
         if e.values[0].value == "task":
             # TODO: This is a Task budget, counted in both month budget and task
@@ -166,7 +168,7 @@ class BudgetTree:
     def sankey_budget(self, filtered, node=None):
         if node is None:
             # NOTE: if node is provided by click a link, use node to render
-            date_last = filtered._date_last + datetime.timedelta(-1)
+            date_last = min(filtered._date_last, self.max_date_) + datetime.timedelta(-1)
             node = str(date_last)[0:-3]
 
         root = self.find_node(node)
@@ -222,7 +224,7 @@ class BudgetTree:
     def interval_budget(self, filtered):
         # Show month data for a whole year, first find the year budget
         # we use the end date for selected txns as the budget year
-        date_last = filtered._date_last + datetime.timedelta(-1)
+        date_last = min(self.max_date_, filtered._date_last) + datetime.timedelta(-1)
         year = str(date_last.year)
         ans = []
         begin = datetime.datetime.strptime("1970-01", "%Y-%m").date()
