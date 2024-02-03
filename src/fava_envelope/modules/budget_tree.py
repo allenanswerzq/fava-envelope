@@ -232,11 +232,11 @@ class BudgetTree:
             assert n
             nonlocal begin
             ok = False
-            if re.match("\d\d\d\d-\d\d", n.node_.name) and n.node_.name.startswith(year):
+            if re.match(r"\d\d\d\d-\d\d", n.node_.name) and n.node_.name.startswith(year):
                 begin += relativedelta(months=+1)
                 ok = True
 
-            elif re.match("budget-\d\d\d\d", n.node_.name) and n.node_.name.endswith(year):
+            elif re.match(r"budget-\d\d\d\d", n.node_.name) and n.node_.name.endswith(year):
                 begin += relativedelta(months=+1)
                 ok = True
 
