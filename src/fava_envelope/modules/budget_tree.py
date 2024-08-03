@@ -75,7 +75,7 @@ class BudgetTree:
 
     def parse_entries(self, entries):
         for e in entries:
-            if isinstance(e, data.Custom) and e.values[0].value in ("allocate", "task"):
+            if isinstance(e, data.Custom) and e.values and e.values[0].value in ("allocate", "task"):
                 self.add_children(self._parse_entry(e))
 
     def change_actual(self, task, month, n, v):
